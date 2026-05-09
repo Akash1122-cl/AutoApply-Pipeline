@@ -1,0 +1,29 @@
+name: AutoApply Daily Run
+
+on:
+  schedule:
+    # 03:30 UTC = 09:00 IST
+    - cron: "30 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  orchestrator:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: autoapply-daily-run
+      cancel-in-progress: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run orchestrator
+        env:
+          TZ: Asia/Kolkata
+        run: |
+          python -m src.orchestrator.main

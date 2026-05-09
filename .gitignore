@@ -1,0 +1,30 @@
+# Secrets and environment variables — NEVER commit these
+secrets/
+.env
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+
+# Virtual environment
+venv/
+.venv/
+
+# Build artefacts
+*.egg-info/
+dist/
+build/
+
+# Local test output & backups
+/tmp/
+C:/tmp/
+logs/
+backups/
+data/
+scratch/
+
+# IDEs
+.vscode/
+.idea/

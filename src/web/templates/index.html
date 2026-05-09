@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoApply | AI Pipeline Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="dark-theme">
+    <div class="glass-bg"></div>
+    
+    <div class="app-container">
+        <aside class="sidebar">
+            <div class="logo">
+                <i data-lucide="zap" class="logo-icon"></i>
+                <span>AutoApply</span>
+            </div>
+            <nav>
+                <a href="#" class="nav-item active"><i data-lucide="layout-dashboard"></i> Dashboard</a>
+                <a href="#" class="nav-item"><i data-lucide="target"></i> Job Discovery</a>
+                <a href="#" class="nav-item"><i data-lucide="users"></i> Contacts</a>
+                <a href="#" class="nav-item"><i data-lucide="file-text"></i> CVs & DMs</a>
+                <a href="#" class="nav-item"><i data-lucide="settings"></i> Settings</a>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="status-indicator">
+                    <span class="dot pulse"></span>
+                    System Live
+                </div>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <header class="top-bar">
+                <div class="search-bar">
+                    <i data-lucide="search"></i>
+                    <input type="text" placeholder="Search jobs, companies...">
+                </div>
+                <div class="user-profile">
+                    <span class="last-run">Last Run: <span id="last-run-time">Never</span></span>
+                    <div class="avatar">PM</div>
+                </div>
+            </header>
+
+            <section class="hero-stats">
+                <div class="stat-card primary">
+                    <div class="stat-header">
+                        <i data-lucide="search"></i>
+                        <span>Jobs Discovered</span>
+                    </div>
+                    <div class="stat-value" id="jobs-processed">0</div>
+                    <div class="stat-delta positive">+12% vs yesterday</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <i data-lucide="send"></i>
+                        <span>Applications</span>
+                    </div>
+                    <div class="stat-value" id="applications-submitted">0</div>
+                    <div class="stat-label">Total Submissions</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <i data-lucide="check-circle"></i>
+                        <span>Success Rate</span>
+                    </div>
+                    <div class="stat-value" id="success-rate">0%</div>
+                    <div class="stat-progress">
+                        <div class="progress-bar" id="success-progress" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <i data-lucide="shield"></i>
+                        <span>Health Score</span>
+                    </div>
+                    <div class="stat-value" id="health-score">0</div>
+                    <div class="stat-label" id="health-status">System Operational</div>
+                </div>
+            </section>
+
+            <div class="content-grid">
+                <div class="grid-card wide">
+                    <div class="card-header">
+                        <h2><i data-lucide="bar-chart-2"></i> Pipeline Analytics</h2>
+                        <button class="btn-icon"><i data-lucide="more-horizontal"></i></button>
+                    </div>
+                    <div id="pipeline-metrics" class="metrics-list">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+                <div class="grid-card">
+                    <div class="card-header">
+                        <h2><i data-lucide="bell"></i> Active Alerts</h2>
+                        <span class="badge" id="alert-count">0</span>
+                    </div>
+                    <div id="alerts" class="alerts-container">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+                <div class="grid-card">
+                    <div class="card-header">
+                        <h2><i data-lucide="clock"></i> SLA Attainment</h2>
+                    </div>
+                    <div id="sla-metrics" class="metrics-list">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+                <div class="grid-card">
+                    <div class="card-header">
+                        <h2><i data-lucide="dollar-sign"></i> Cost Efficiency</h2>
+                    </div>
+                    <div id="cost-metrics" class="metrics-list">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </div>
+
+            <section class="report-section">
+                <div class="card-header">
+                    <h2><i data-lucide="file-text"></i> Executive Daily Report</h2>
+                    <button class="btn-secondary" onclick="loadDailyReport()"><i data-lucide="refresh-cw"></i> Refresh</button>
+                </div>
+                <div id="daily-report" class="report-box">
+                    <div class="loader"></div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        // Initialize Lucide icons
+        lucide.createIcons();
+
+        // Fetch and display metrics
+        async function loadMetrics() {
+            try {
+                const response = await fetch('/api/metrics');
+                const data = await response.json();
+                
+                document.getElementById('jobs-processed').textContent = data.pipeline.jobs_discovered || 0;
+                document.getElementById('applications-submitted').textContent = data.pipeline.applications_submitted || 0;
+                const sr = (data.execution.success_rate || 0).toFixed(1);
+                document.getElementById('success-rate').textContent = sr + '%';
+                document.getElementById('success-progress').style.width = sr + '%';
+                document.getElementById('last-run-time').textContent = data.timestamp.split('T')[1].split('.')[0];
+                
+                document.getElementById('pipeline-metrics').innerHTML = `
+                    <div class="metric-item">
+                        <span class="label">Discovered</span>
+                        <span class="value">${data.pipeline.jobs_discovered || 0}</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="label">Qualified</span>
+                        <span class="value">${data.pipeline.jobs_qualified || 0}</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="label">Approved</span>
+                        <span class="value">${data.pipeline.applications_submitted || 0}</span>
+                    </div>
+                `;
+                
+                document.getElementById('sla-metrics').innerHTML = `
+                    <div class="metric-item">
+                        <span class="label">CP1 Target</span>
+                        <span class="value highlight">${(data.sla.cp1_sla_met || 0).toFixed(1)}%</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="label">CP2 Target</span>
+                        <span class="value highlight">${(data.sla.cp2_sla_met || 0).toFixed(1)}%</span>
+                    </div>
+                `;
+                
+                document.getElementById('cost-metrics').innerHTML = `
+                    <div class="metric-item">
+                        <span class="label">Today</span>
+                        <span class="value">$${(data.cost.total_today || 0).toFixed(2)}</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="label">Month Est.</span>
+                        <span class="value">$${(data.cost.total_month || 0).toFixed(2)}</span>
+                    </div>
+                `;
+            } catch (error) {
+                console.error('Error loading metrics:', error);
+            }
+        }
+
+        async function loadAlerts() {
+            try {
+                const response = await fetch('/api/alerts');
+                const data = await response.json();
+                document.getElementById('alert-count').textContent = data.active_alerts.length;
+                
+                if (data.active_alerts.length === 0) {
+                    document.getElementById('alerts').innerHTML = '<div class="empty-state"><i data-lucide="check-circle"></i><p>All systems normal</p></div>';
+                } else {
+                    document.getElementById('alerts').innerHTML = data.active_alerts.map(alert => `
+                        <div class="alert-pill ${alert.severity}">
+                            <i data-lucide="${alert.severity === 'critical' ? 'alert-octagon' : 'alert-triangle'}"></i>
+                            <div class="alert-info">
+                                <strong>${alert.title}</strong>
+                                <span>${alert.message}</span>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+                lucide.createIcons();
+            } catch (error) {
+                console.error('Error loading alerts:', error);
+            }
+        }
+
+        async function loadHealthScore() {
+            try {
+                const response = await fetch('/api/executive-summary');
+                const data = await response.json();
+                const score = data.health_score || 75;
+                document.getElementById('health-score').textContent = score.toFixed(0);
+                document.getElementById('health-status').textContent = score > 80 ? 'System Healthy' : 'Action Required';
+            } catch (error) {
+                console.error('Error loading health score:', error);
+            }
+        }
+
+        async function loadDailyReport() {
+            try {
+                const response = await fetch('/api/report');
+                const data = await response.json();
+                document.getElementById('daily-report').innerHTML = data.report ? `<pre>${data.report}</pre>` : '<p>No report available</p>';
+            } catch (error) {
+                document.getElementById('daily-report').innerHTML = '<p>Error loading report</p>';
+            }
+        }
+
+        loadMetrics();
+        loadAlerts();
+        loadHealthScore();
+        loadDailyReport();
+        setInterval(() => { loadMetrics(); loadAlerts(); loadHealthScore(); }, 30000);
+    </script>
+</body>
+</html>

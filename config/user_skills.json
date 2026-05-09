@@ -1,0 +1,30 @@
+{
+  "_comment": "Your real skill set used for job scoring. Edit this to match your actual skills.",
+  "_note": "Add skills exactly as they appear in job descriptions (lowercase). The scorer does case-insensitive matching.",
+
+  "core_skills": [
+    "agile",
+    "sql",
+    "jira",
+    "user research",
+    "python",
+    "data analysis",
+    "a/b testing",
+    "roadmapping",
+    "strategy",
+    "product management",
+    "stakeholder management",
+    "figma",
+    "growth"
+  ],
+
+  "qualification_threshold": 60,
+
+  "_scoring_guide": {
+    "0 matches": 30,
+    "1 match": 50,
+    "2 matches": 70,
+    "3+ matches": 90,
+    "title_bonus": "+10 if role title contains 'associate product manager' or 'apm'"
+  }
+}
