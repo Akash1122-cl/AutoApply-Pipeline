@@ -46,7 +46,7 @@ class OttaScraper(BaseScraper):
         job_urls = []
 
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
+            browser = p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"])
             page = browser.new_page()
 
             for search_url in self.search_urls:
@@ -96,7 +96,7 @@ class OttaScraper(BaseScraper):
 
         try:
             with sync_playwright() as p:
-                browser = p.chromium.launch(headless=True)
+                browser = p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"])
                 page = browser.new_page()
 
                 # Rate limiting

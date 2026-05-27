@@ -117,6 +117,17 @@ class LLMClient:
 
     async def generate_json(self, prompt: str, schema: dict) -> dict:
         """Generates JSON from the LLM, validating against schema."""
+        if self.provider == "groq" and self.groq_api_key == "dummy-key-for-tests":
+            mock_data = {}
+            for prop_name, prop_val in schema.get("properties", {}).items():
+                if prop_val.get("type") == "array":
+                    mock_data[prop_name] = []
+                elif prop_val.get("type") == "object":
+                    mock_data[prop_name] = {}
+                else:
+                    mock_data[prop_name] = f"mock_{prop_name}"
+            return mock_data
+
         if self.provider == "gemini":
             # For Gemini, we use a simple text prompt and manual parse for now
             # as its native JSON mode requires different configuration

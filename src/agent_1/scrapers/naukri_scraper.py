@@ -53,7 +53,7 @@ class NaukriScraper(BaseScraper):
 
                 for entry in feed.entries[:20]:  # Limit to 20 per feed
                     if hasattr(entry, 'link'):
-                        job_urls.append(entry.link)
+                        job_urls.append(self.normalize_url(entry.link))
 
             except Exception as e:
                 print(f"Naukri: Error fetching RSS feed {feed_url}: {e}")
@@ -68,6 +68,7 @@ class NaukriScraper(BaseScraper):
         Only called for jobs passing initial filters.
         """
         try:
+            job_url = self.normalize_url(job_url)
             html = self._fetch_page(job_url, use_cache=True)
             if not html:
                 return None

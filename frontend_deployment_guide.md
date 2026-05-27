@@ -14,20 +14,55 @@ To run the dashboard on your local machine:
 
 ## ☁️ Cloud Deployment (Live on Web)
 
-If you want to access your dashboard from anywhere, I recommend using **Render** (for the FastAPI backend) or **Vercel**.
+Depending on your budget, choose one of the following deployment paths:
 
-### 1. Deploying on Render (Recommended for FastAPI)
-1. **Connect GitHub**: Push your code to a GitHub repository.
-2. **Create Web Service**:
+---
+
+### Option A: Free Tier Deployment (FastAPI Web Service + External Cron Ping) ⭐ (Recommended for $0/mo)
+
+Render's Free tier does not support persistent disks and spins down web services after 15 minutes of inactivity (killing background daemon loops). To run the scheduler daily for free:
+
+1. **Deploy to Render (Web Service)**:
+   - Go to [Render Dashboard](https://dashboard.render.com) and click **New +** > **Web Service**.
+   - Connect your GitHub repository.
+   - **Name**: `autoapply-pipeline`
    - **Environment**: `Python`
-   - **Build Command**: `pip install -r requirements.txt`
+   - **Build Command**: `bash ./build.sh`
    - **Start Command**: `uvicorn src.web.app:app --host 0.0.0.0 --port $PORT`
-3. **Environment Variables**: Add all variables from your `.env` file to the Render Dashboard (under "Environment").
+   - **Instance Type**: Free ($0/mo)
 
-### 2. Deploying on Vercel
+2. **Add Environment Variables**:
+   Under the **Environment** tab on Render, add all keys and values from your local `.env` file.
+   - **Security Key**: Add a custom variable `PIPELINE_TRIGGER_TOKEN` with a strong random string (e.g. `my-super-secret-key`) to prevent unauthorized triggers.
+
+3. **Set Up the Free Cron Trigger**:
+   - Go to [cron-job.org](https://cron-job.org/) (a completely free cron scheduling service).
+   - Create a new cron job:
+     * **Title**: `AutoApply Daily Trigger`
+     * **URL**: `https://YOUR_RENDER_SERVICE_URL.onrender.com/api/run-pipeline`
+     * **Request Method**: `POST`
+     * **Schedule**: Once a day (e.g. 9:00 AM IST / 03:30 AM UTC).
+     * **Request Headers**: Add `Authorization` with value `Bearer YOUR_PIPELINE_TRIGGER_TOKEN_VALUE`
+   - *Result*: The cron job will ping your webhook daily. This boots up the free Render container, triggers the orchestrator in the background, runs the full job discovery/apply pipeline, and spins down automatically.
+
+---
+
+### Option B: Paid Tier Deployment (Render Blueprint Setup - $7+/mo)
+
+If you have a paid plan, you can use the automated Blueprint configuration with a persistent disk.
+
+1. Go to [Render Dashboard](https://dashboard.render.com) and click **New +** > **Blueprint**.
+2. Connect your GitHub repository.
+3. Render will read the `render.yaml` file to configure the unified service (`autoapply-pipeline`), the start command (`bash ./start.sh`), and the persistent disk (`pipeline-data`) automatically.
+4. Copy all keys and values from your local `.env` file to the Render environment dashboard.
+
+---
+
+### Option C: Deploying on Vercel (Dashboard Only)
 1. Install the Vercel CLI: `npm i -g vercel`
 2. Run `vercel` in the root directory.
-3. Vercel will automatically detect the FastAPI app (ensure you have a `vercel.json` if needed, but modern Vercel handles it via Python Runtimes).
+3. Vercel will automatically detect the FastAPI app using the `vercel.json` runtime configuration. (Note: The background scheduler will *not* run on Vercel; Vercel is only for the web dashboard interface).
+
 
 ---
 

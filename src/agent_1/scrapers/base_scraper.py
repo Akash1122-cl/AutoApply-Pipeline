@@ -239,9 +239,9 @@ class BaseScraper(ABC):
 
         elif response.status_code in [403, 406]:
             self.metrics.blocked_ips += 1
-            # Block for 24 hours
+            # Block for 1 hour instead of 24 hours to recover faster
             quota = self._load_daily_quota()
-            quota['blocked_until'] = (datetime.now() + timedelta(days=1)).isoformat()
+            quota['blocked_until'] = (datetime.now() + timedelta(hours=1)).isoformat()
             self._save_daily_quota(quota)
             raise BlockedError(f"{self.config.name}: Blocked ({response.status_code})")
 
@@ -364,22 +364,56 @@ class BaseScraper(ABC):
             pass
 
     def _check_robots_txt(self) -> bool:
-        """Check robots.txt before scraping."""
+        """Check robots.txt before scraping using urllib.robotparser."""
         if not self.config.robots_txt_check:
             return True
 
         try:
-            robots_url = f"{self.config.base_url}/robots.txt"
-            response = self.session.get(robots_url, timeout=10)
+            import urllib.robotparser
+            from urllib.parse import urlparse
+            
+            parsed_uri = urlparse(self.config.base_url)
+            domain = f"{parsed_uri.scheme}://{parsed_uri.netloc}"
+            robots_url = f"{domain}/robots.txt"
+            
+            rp = urllib.robotparser.RobotFileParser()
+            rp.set_url(robots_url)
+            
+            # Fetch with our user agent
+            headers = {'User-Agent': random.choice(self.USER_AGENTS)}
+            response = self.session.get(robots_url, headers=headers, timeout=10)
+            
             if response.status_code == 200:
-                # Simple check - disallow if * is disallowed
-                if 'Disallow: /' in response.text or 'Disallow: *' in response.text:
-                    print(f"{self.config.name}: robots.txt disallows scraping")
+                rp.parse(response.text.splitlines())
+                can_fetch = rp.can_fetch(headers['User-Agent'], self.config.base_url)
+                if not can_fetch:
+                    print(f"{self.config.name}: robots.txt disallows scraping for our User-Agent")
                     return False
-        except Exception:
+        except Exception as e:
+            print(f"{self.config.name}: robots.txt check failed: {e}. Proceeding with caution.")
             pass  # If robots.txt check fails, proceed with caution
 
         return True
+
+    def normalize_url(self, url: str) -> str:
+        """Strip query parameters and fragments from a URL to get the canonical clean link."""
+        if not url:
+            return ""
+        from urllib.parse import urlparse, urlunparse
+        try:
+            parsed = urlparse(url)
+            # Reconstruct URL without query parameters and fragment
+            clean_url = urlunparse((
+                parsed.scheme,
+                parsed.netloc,
+                parsed.path,
+                "",  # params
+                "",  # query
+                ""   # fragment
+            ))
+            return clean_url
+        except Exception:
+            return url
 
     @abstractmethod
     def discover_jobs(self, search_params: Dict[str, Any]) -> List[str]:

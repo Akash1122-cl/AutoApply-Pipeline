@@ -2,15 +2,17 @@
 FastAPI Web Application for AutoApply Phase 10 Dashboard
 """
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, BackgroundTasks, HTTPException, Header
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 from datetime import datetime
+from pathlib import Path
 import sys
 import os
 import json
 import glob
+
 
 # Add parent directory to path for imports
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
@@ -111,10 +113,11 @@ templates = Jinja2Templates(directory=templates_dir)
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request):
     """Main dashboard page"""
-    return templates.TemplateResponse("index.html", {
-        "request": request,
-        "title": "AutoApply Dashboard"
-    })
+    return templates.TemplateResponse(
+        request=request,
+        name="index.html",
+        context={"request": request, "title": "AutoApply Dashboard"}
+    )
 
 @app.get("/api/metrics")
 async def get_metrics():
@@ -286,6 +289,42 @@ async def get_scraper_config():
         "config": config
     }
 
+async def run_pipeline_task():
+    """Asynchronous background task to execute the orchestrator pipeline."""
+    from src.orchestrator.main import Orchestrator, build_demo_rows
+    from src.shared.sheets_gateway import SheetsGateway
+    from src.shared.run_logger import RunLogger
+    from src.orchestrator.run_lock_manager import run_lock
+    
+    lock_path = Path("logs/.orchestrator.lock")
+    try:
+        # Ensure log directory exists
+        Path("logs").mkdir(parents=True, exist_ok=True)
+        with run_lock(lock_path):
+            use_demo = os.environ.get("USE_DEMO_DATA", "false").lower() == "true"
+            initial_rows = build_demo_rows() if use_demo else []
+            sheets = SheetsGateway.from_seed_rows(initial_rows)
+            logger = RunLogger()
+            orchestrator = Orchestrator(sheets=sheets, logger=logger)
+            await orchestrator.run_once()
+            log_path = logger.close()
+            print(f"Pipeline run completed successfully. Log: {log_path}")
+    except Exception as e:
+        print(f"Pipeline execution task failed: {e}")
+
+@app.post("/api/run-pipeline")
+async def run_pipeline(background_tasks: BackgroundTasks, authorization: str = Header(None)):
+    """Webhook endpoint to trigger pipeline run on Free tier setups via external cron ping."""
+    secret_token = os.getenv("PIPELINE_TRIGGER_TOKEN")
+    if secret_token:
+        expected = f"Bearer {secret_token}"
+        if authorization != expected:
+            raise HTTPException(status_code=401, detail="Unauthorized API trigger")
+            
+    background_tasks.add_task(run_pipeline_task)
+    return {"status": "accepted", "message": "Pipeline execution started in the background"}
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="127.0.0.1", port=8000)
+

@@ -1,27 +1,18 @@
 services:
-  # 1. FastAPI Dashboard
+  # Unified Web & Worker Service running both Dashboard and Daemon
   - type: web
-    name: autoapply-dashboard
+    name: autoapply-pipeline
     env: python
     buildCommand: "bash ./build.sh"
-    startCommand: "uvicorn src.web.app:app --host 0.0.0.0 --port $PORT"
-    envVars:
-      - key: PYTHON_VERSION
-        value: 3.12.0
-
-  # 2. Orchestrator Daemon
-  - type: worker
-    name: autoapply-orchestrator
-    env: python
-    buildCommand: "bash ./build.sh"
-    startCommand: "python -m src.orchestrator.main --daemon"
+    startCommand: "bash ./start.sh"
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.0
       - key: TZ
         value: "Asia/Kolkata" # Ensures the 9:00 AM IST check works correctly
-    # Persistent Disk to store logs and local generated documents safely across deploys
+    # Persistent Disk to store logs and reports safely across deploys and share them between processes
     disk:
-      name: orchestrator-data
+      name: pipeline-data
       mountPath: /opt/render/project/src/logs
       sizeGB: 1
+

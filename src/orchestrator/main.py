@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -67,6 +67,10 @@ class Orchestrator:
         self.logger.increment("cvs_generated", len(self.sheets.get_rows_by_status("AWAITING_CONTENT_REVIEW")))
         self.sheets.commit()
 
+        # Phase 6.5: Content Review Gate (CP2)
+        await self._process_content_review_gate()
+        self.sheets.commit()
+
         # Phase 7: ATS Review
         await self._process_ats_review()
         self.sheets.commit()
@@ -84,7 +88,7 @@ class Orchestrator:
     async def _process_discovery_phase(self) -> None:
         pipeline = Agent1Pipeline()
         existing_keys = self.sheets.get_existing_dedup_keys()
-        new_jobs = pipeline.run(existing_keys)
+        new_jobs = await asyncio.to_thread(pipeline.run, existing_keys)
         if new_jobs:
             self.sheets.add_rows(new_jobs)
             self.logger.increment("jobs_discovered", len(new_jobs))
@@ -164,6 +168,11 @@ class Orchestrator:
         agent = ExecutionAgent(self.logger)
 
         for row in rows:
+            # Enforce daily application cap (maximum 25 per day) to prevent LinkedIn automation bans
+            if agent.usage.applications_submitted >= 25:
+                self.logger.record_error("phase_8", "execution", "Daily application cap (25) reached. Pausing remaining executions.")
+                break
+
             job_id = row["job_id"]
             try:
                 result = await agent.execute_row(row)
@@ -485,8 +494,14 @@ class Orchestrator:
                     break
                 else:
                     self.logger.record_error(job_id, "agent2", f"API failure: {e}")
-                    self.sheets.set_failed(job_id, "agent2", f"API failure: {e}")
-                    self.logger.increment("rows_failed")
+                    # Do not block the pipeline (Rule 5)
+                    existing_notes = row.get("notes", "")
+                    row["notes"] = f"{existing_notes}\n[Agent2] API failure: {e}. Proceeding without contact.".strip()
+                    row["contact_found"] = False
+                    row["status"] = "CONTENT_GENERATION"
+                    self.sheets.update_row(job_id, row)
+                    self._safe_transition(row, "CONTENT_GENERATION", TransitionContext())
+                    self.logger.increment("agent2_contacts_not_found_continued")
                     
         self.logger.increment("agent2_rows_processed", rows_processed)
         self.logger.increment("agent2_contacts_found", contacts_found)
@@ -811,29 +826,37 @@ async def main() -> None:
     
     if args.daemon:
         print("Starting orchestrator in DAEMON mode (9 AM IST trigger)...")
+        last_run_date = None
         while True:
-            now = datetime.now()
+            now = datetime.now(timezone.utc)
             if Orchestrator.should_run_now(now):
-                print(f"Trigger hit at {now}. Running pipeline...")
-                with run_lock(lock_path):
-                    sheets = SheetsGateway.from_seed_rows(build_demo_rows())
-                    logger = RunLogger()
-                    orchestrator = Orchestrator(sheets=sheets, logger=logger)
-                    await orchestrator.run_once()
-                    log_path = logger.close()
-                    print(f"Daily run complete. Log: {log_path}")
+                current_date = now.astimezone(IST).date()
+                if last_run_date != current_date:
+                    print(f"Trigger hit at {now}. Running pipeline...")
+                    with run_lock(lock_path):
+                        use_demo = os.environ.get("USE_DEMO_DATA", "false").lower() == "true"
+                        initial_rows = build_demo_rows() if use_demo else []
+                        sheets = SheetsGateway.from_seed_rows(initial_rows)
+                        logger = RunLogger()
+                        orchestrator = Orchestrator(sheets=sheets, logger=logger)
+                        await orchestrator.run_once()
+                        log_path = logger.close()
+                        print(f"Daily run complete. Log: {log_path}")
+                    last_run_date = current_date
             
             # Check every minute
             await asyncio.sleep(60)
     else:
         # Run once mode
         with run_lock(lock_path):
-            sheets = SheetsGateway.from_seed_rows(build_demo_rows())
+            use_demo = os.environ.get("USE_DEMO_DATA", "false").lower() == "true"
+            initial_rows = build_demo_rows() if use_demo else []
+            sheets = SheetsGateway.from_seed_rows(initial_rows)
             logger = RunLogger()
             orchestrator = Orchestrator(sheets=sheets, logger=logger)
             await orchestrator.run_once()
             log_path = logger.close()
-            print(f"Phase 10 dry-run completed. Log written to: {log_path}")
+            print(f"Phase 10 run completed. Log written to: {log_path}")
 
 
 if __name__ == "__main__":

@@ -1,8 +1,16 @@
 """Test suite for job portal scrapers with rate limiting and error handling."""
 
 import os
+import sys
 import time
 from dotenv import load_dotenv
+
+# Set UTF-8 encoding for Windows terminals
+try:
+    sys.stdout.reconfigure(encoding='utf-8')
+    sys.stderr.reconfigure(encoding='utf-8')
+except AttributeError:
+    pass
 
 load_dotenv()
 
@@ -75,7 +83,7 @@ def test_cache_functionality(scraper_class, scraper_name):
     # Clear cache dir for clean test
     import shutil
     if scraper.cache_dir.exists():
-        shutil.rmtree(scraper.cache_dir)
+        shutil.rmtree(scraper.cache_dir, ignore_errors=True)
     scraper.cache_dir.mkdir(parents=True, exist_ok=True)
 
     # First call - should be cache miss

@@ -17,6 +17,13 @@ import os
 import sys
 from dotenv import load_dotenv
 
+# Set UTF-8 encoding for Windows terminals
+try:
+    sys.stdout.reconfigure(encoding='utf-8')
+    sys.stderr.reconfigure(encoding='utf-8')
+except AttributeError:
+    pass
+
 # Load environment variables
 load_dotenv()
 

@@ -15,11 +15,11 @@ class CVBuilder:
     async def build_cv(self, row: dict, mapped_skills: dict, master_cv: dict, ats_feedback: str = None) -> dict:
         # Construct Prompt
         prompt = CV_PROMPT_TEMPLATE.format(
-            company=row.get("company", ""),
-            role_title=row.get("role_title", ""),
-            job_url=row.get("job_url", ""),
-            required_skills=", ".join(row.get("required_skills", [])),
-            job_description=row.get("job_description", "None provided"),
+            company=row.get("company") or "Unknown Company",
+            role_title=row.get("role_title") or "Unknown Role",
+            job_url=row.get("job_url") or "Not provided",
+            required_skills=", ".join(row.get("required_skills") or []),
+            job_description=row.get("job_description") or "None provided",
             ats_feedback=ats_feedback or "None",
             master_cv=json.dumps(master_cv, indent=2),
             mapped_accomplishments=json.dumps(mapped_skills, indent=2)
@@ -39,7 +39,8 @@ class CVBuilder:
                 raise FabricationError(f"Fabrication detected: {validation['violations']}")
 
         # Generate DOCX
-        doc_path = self._generate_docx(generated_cv, row.get("company", "Unknown"))
+        company_name = row.get("company") or "Unknown"
+        doc_path = self._generate_docx(generated_cv, company_name)
         
         return {
             "cv_doc_link": doc_path,
@@ -51,7 +52,9 @@ class CVBuilder:
         folder_id = os.environ.get('GOOGLE_GENERATED_CVS_FOLDER_ID', 'your_generated_cvs_folder_id')
         
         date_str = datetime.now().strftime("%Y-%m-%d")
-        safe_company = "".join([c for c in company if c.isalpha() or c.isdigit() or c==' ']).rstrip()
+        safe_company = "".join([c for c in company if c.isalpha() or c.isdigit() or c==' ']).strip()
+        if not safe_company:
+            safe_company = "Unknown"
         filename = f"{safe_company}_APM_CV_{date_str}"
         
         # 1. ALWAYS save a local backup in the project

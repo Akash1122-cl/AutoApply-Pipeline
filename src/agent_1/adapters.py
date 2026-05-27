@@ -182,15 +182,21 @@ class AdzunaAdapter(JobSourceAdapter):
 
 
 class SerpApiAdapter(JobSourceAdapter):
-    """Fetches jobs from Google Jobs via SerpAPI."""
+    """Fetches jobs from Google Jobs via SerpAPI or SearchApi.io."""
 
     def __init__(self):
         self.api_key = os.environ.get("SERPAPI_KEY", "")
-        self.base_url = "https://serpapi.com/search"
+        # SearchApi.io keys are 24 characters; SerpAPI keys are 64 characters
+        if self.api_key and len(self.api_key.strip()) == 24:
+            self.base_url = "https://www.searchapi.io/api/v1/search"
+            self.provider_name = "SearchApi"
+        else:
+            self.base_url = "https://serpapi.com/search"
+            self.provider_name = "SerpAPI"
 
     def fetch_jobs(self) -> List[Dict[str, Any]]:
         if not self.api_key:
-            print("Warning: SerpAPI key not configured. Skipping SerpAPI.")
+            print(f"Warning: {self.provider_name} key not configured. Skipping.")
             return []
 
         jobs = []
@@ -216,12 +222,12 @@ class SerpApiAdapter(JobSourceAdapter):
                 response.raise_for_status()
                 data = response.json()
 
-                for job in data.get("jobs_results", []):
+                for job in data.get("jobs_results", data.get("jobs", [])):
                     jobs.append({
                         "job_id": str(uuid.uuid4()),
                         "company": job.get("company_name", "Unknown"),
                         "role_title": job.get("title", ""),
-                        "job_url": job.get("job_id", ""),
+                        "job_url": job.get("share_link", job.get("apply_link", job.get("sharing_link", job.get("job_id", "")))),
                         "source_platform": "GoogleJobs",
                         "date_scraped": today,
                         "region": self._extract_region(query),
@@ -232,7 +238,7 @@ class SerpApiAdapter(JobSourceAdapter):
                     })
 
             except Exception as e:
-                print(f"Error fetching from SerpAPI for {query}: {e}")
+                print(f"Error fetching from {self.provider_name} for {query}: {e}")
                 continue
 
         return jobs

@@ -117,14 +117,8 @@ class ExecutionAgent:
                 any_success = True
                 notes_parts.append(f"[Email sent] to {row.get('contact_email')} at {outreach_sent_at}")
             elif not result["success"]:
-                # Email failure is non-fatal if we also submitted an application
+                # Email failure is non-fatal; log it and continue to LinkedIn DM
                 notes_parts.append(f"[Email FAILED] {result['error']}")
-                if not applied_at:
-                    return {
-                        "final_status": "FAILED",
-                        "error": result["error"],
-                        "notes_append": "\n".join(notes_parts),
-                    }
 
         # LinkedIn DM send
         if decision.send_linkedin_dm:
